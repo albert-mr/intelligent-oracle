@@ -77,10 +77,10 @@ def create_football_prediction_market(
 
 
 if __name__ == "__main__":
-    # Check if VITE_CONTRACT_ADDRESS is already set
-    VITE_CONTRACT_ADDRESS_KEY = "VITE_CONTRACT_ADDRESS"
+    # Check if NEXT_PUBLIC_IC_REGISTRY_ADDRESS is already set
+    REGISTRY_ADDRESS_KEY = "NEXT_PUBLIC_IC_REGISTRY_ADDRESS"
     load_dotenv()
-    contract_address = os.getenv(VITE_CONTRACT_ADDRESS_KEY)
+    contract_address = os.getenv(REGISTRY_ADDRESS_KEY)
     if contract_address is not None and is_valid_address(contract_address):
         print(f"Registry already created at {contract_address}")
         exit(0)
@@ -110,4 +110,4 @@ if __name__ == "__main__":
         create_football_prediction_market(registry_address, data_source)
 
     print(f"Registry address: {registry_address}")
-    set_key(".env", "VITE_CONTRACT_ADDRESS", registry_address)
+    set_key(".env", REGISTRY_ADDRESS_KEY, registry_address)

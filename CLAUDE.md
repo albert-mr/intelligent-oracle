@@ -1,57 +1,67 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with this repository.
 
 ## Project Overview
 
-GenLayer Intelligent Oracle system — multi-module project for creating and monitoring blockchain oracles powered by LLM-based resolution. Targets the hosted GenLayer Studio (`studionet` — `https://studio.genlayer.com/api`) by default; can be pointed at `localnet`, `testnet-asimov`, or `testnet-bradbury` via env vars.
+GenLayer Intelligent Oracle system — a single Next.js application for creating, deploying, and monitoring prediction-market oracles powered by GenLayer intelligent contracts. The app targets hosted GenLayer Studio (`studionet` — `https://studio.genlayer.com/api`) by default and can be pointed at localnet or testnets via env vars.
 
 ## Module Structure
 
-- **bridge/** — Nuxt 4 backend API. Chat endpoint via OpenRouter (`@openrouter/ai-sdk-provider` + Vercel AI SDK v6); bridge endpoint that deploys oracles through the on-chain factory using `genlayer-js` 1.x. Vercel-ready.
-- **explorer/** — Vite 8 + Vue 3.5 + Pinia 3 monitoring dashboard. Tailwind v4 (CSS-first config).
-- **ui-wizard/** — Nuxt 4 configuration wizard. Uses `@ai-sdk/vue` v3's `Chat` class with `DefaultChatTransport`. Default LLM model is `openai/gpt-5-mini` via OpenRouter (configured server-side in `bridge/`).
-- **intelligent-contracts/** — GenLayer Python contracts using the current SDK (`class X(gl.Contract):`, `gl.eq_principle.prompt_comparative`, `gl.nondet.web.get`, `gl.nondet.exec_prompt`).
-- **scripts/** — TypeScript factory deployment using `genlayer-js` 1.x against `studionet` by default.
-- **test/** — Python E2E tests (raw `pytest` + `requests`). Migration to `gltest` is open work.
+- `src/app` — Next.js App Router UI and route handlers.
+- `src/components` — React UI components for the assistant wizard and explorer.
+- `src/lib` — shared validation, AI message parsing, GenLayer hooks, and display helpers.
+- `intelligent-contracts/` — GenLayer Python contracts using `gl.Contract`, `gl.eq_principle.prompt_comparative`, `gl.nondet.web.get`, and `gl.nondet.exec_prompt`.
+- `scripts/` — separate npm package for factory deployment using `genlayer-js` 1.x. Keep it outside root app commands unless the user explicitly wants to deploy.
+- `test/` — Python E2E tests and seed helpers.
 
 ## Build & Run
 
-- **Per-module dev:** `npm install && npm run dev` in `bridge/`, `explorer/`, or `ui-wizard/` after copying `.env.example` to `.env`.
-- **Deploy contracts:** `cd scripts && npm install && cp .env.example .env && npm run deploy`
-- **Local validator network (optional):** `genlayer init` brings up Studio locally; point each module's RPC env at `http://localhost:4000/api`.
+```bash
+npm install
+cp .env.example .env
+npm run dev
 
-There is no longer a Docker stack in this repo — the previous `docker-compose.yml` ran the legacy v0.16 GenLayer Simulator and was removed in favor of hosted Studio + `genlayer init` for local dev.
+npm run lint
+npm run typecheck
+npm run test
+npm run build
 
-## Testing & Linting
+# Or run the standard root verification sequence:
+npm run check
+```
+
+Deploy contracts with:
 
 ```bash
-# Python E2E
-pip install -r test/requirements.txt
-pytest test/
-
-# Contract lint (requires `pip install genvm-linter && genvm-lint setup` once)
-genvm-lint check intelligent-contracts/IntelligentOracle.py
-genvm-lint check intelligent-contracts/IntelligentOracleFactory.py
+cd scripts && npm install && cp .env.example .env && npm run deploy
 ```
+
+## Claude Skills
+
+Project-specific skills live in `.claude/skills/`. The GenLayer development skills were adapted from `genlayerlabs/skills` for this repo's layout:
+
+- `write-contract` — edit `intelligent-contracts/` safely and keep the app/deploy ABI aligned.
+- `genvm-lint` — run GenVM lint/schema/type checks against `intelligent-contracts/*.py`.
+- `direct-tests` — run and extend direct-mode pytest coverage under `test/`.
+- `integration-tests` — plan intentional live Studio/testnet checks without treating them as routine verification.
+- `genlayer-cli` — inspect networks, accounts, receipts, schemas, and deployed contracts.
+- `deploy` — user-invoked factory deployment through the separate `scripts/` package.
+- `verify` — standard root verification plus optional Python contract tests.
 
 ## Environment
 
-Each module has its own `.env.example`. Network defaults point at `https://studio.genlayer.com/api`; override per-module if you're running locally or on testnets.
-
-**Gotcha:** `VITE_CONTRACT_ADDRESS` in the explorer is read at Vite build time — change it and re-run `npm run dev`.
+- Server-only: `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `OPENROUTER_BASE_URL`, `BRIDGE_PRIVATE_KEY`, `GENLAYER_RPC_URL`, `IC_REGISTRY_ADDRESS`.
+- Browser: `NEXT_PUBLIC_GENLAYER_RPC_URL`, `NEXT_PUBLIC_IC_REGISTRY_ADDRESS`.
+- Default RPC points at hosted Studio. Override both GenLayer RPC env vars for localnet or testnets.
 
 ## Tech Stack
 
-- **Contracts:** Python on GenVM. Subclass `gl.Contract`, typed `DynArray`/`TreeMap` storage, equivalence via `gl.eq_principle.prompt_comparative` or custom validators.
-- **Frontend:** Vue 3.5 + Tailwind v4. Nuxt 4 for `bridge/` and `ui-wizard/`, Vite 8 for `explorer/`.
-- **Backend:** Nuxt 4 Nitro (30s function timeout for Vercel deploys).
-- **SDKs:** `genlayer-js` 1.x, `ai` v6, `@ai-sdk/openai`, `@ai-sdk/vue`, `@openrouter/ai-sdk-provider`.
+- Frontend/runtime: Next.js 16 App Router, React 19, Tailwind v4.
+- AI: Vercel AI SDK v6, `@ai-sdk/react`, `@openrouter/ai-sdk-provider`.
+- GenLayer: `genlayer-js` 1.x plus Python GenVM contracts.
+- Tests: Vitest for shared TypeScript helpers, pytest for contract E2E.
 
 ## Git Conventions
 
 Use conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`.
-
-## Monorepo Notes
-
-No root `package.json` — each module manages its own deps. All four JS modules use npm with pinned major-version-current packages. Subdirectory `CLAUDE.md` files can be added for module-specific instructions if needed.
