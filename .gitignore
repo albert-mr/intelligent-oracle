@@ -161,9 +161,11 @@ cython_debug/
 
 # Node dependencies
 node_modules/
+*.tsbuildinfo
 
 # Build outputs and framework caches
 dist/
+.next/
 .output/
 .nuxt/
 .nitro/
