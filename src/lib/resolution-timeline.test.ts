@@ -18,8 +18,23 @@ function makeOracle(overrides: Partial<Oracle> = {}): Oracle {
     data_source_domains: ["league.example"],
     resolution_urls: [],
     earliest_resolution_date: "2026-06-01",
+    status: "Active",
+    outcome: null,
     ...overrides,
   };
+}
+
+// Build a base64-encoded validator output matching the contract's eq_outputs
+// shape: per-validator JSON with reasoning + outcome.
+function encodeValidatorOutput(outcome: string, reasoning: string): string {
+  const json = JSON.stringify({
+    relevant_sources: ["league.example/result"],
+    reasoning,
+    outcome,
+  });
+  return typeof Buffer !== "undefined"
+    ? Buffer.from(json, "utf8").toString("base64")
+    : btoa(json);
 }
 
 function makeResolutionTx(overrides: Partial<Transaction> = {}): Transaction {
@@ -31,20 +46,24 @@ function makeResolutionTx(overrides: Partial<Transaction> = {}): Transaction {
       final: true,
       leader_receipt: {
         node_config: { address: "0xLEADER", provider: "openai", model: "gpt-5" },
-        vote: "Yes",
-        execution_result: "The leader read the URL and concluded Yes.",
-        eq_outputs: {},
+        vote: "agree",
+        execution_result: "SUCCESS",
+        result: encodeValidatorOutput("Yes", "Leader read the URL and concluded Yes."),
+        eq_outputs: {
+          "0": encodeValidatorOutput("Yes", "Validator 1 read the URL and concluded Yes."),
+          "1": encodeValidatorOutput("Yes", "Validator 2 read the URL and concluded Yes."),
+        },
       },
       validators: [
         {
-          node_config: { address: "0xV1", provider: "openai", model: "gpt-5" },
-          vote: "Yes",
-          execution_result: "Validator 1 read the URL and concluded Yes.",
+          node_config: { address: "0xV1" },
+          vote: "agree",
+          execution_result: "SUCCESS",
         },
         {
-          node_config: { address: "0xV2", provider: "openai", model: "gpt-5" },
-          vote: "Yes",
-          execution_result: "Validator 2 read the URL and concluded Yes.",
+          node_config: { address: "0xV2" },
+          vote: "agree",
+          execution_result: "SUCCESS",
         },
       ],
     },
@@ -53,57 +72,64 @@ function makeResolutionTx(overrides: Partial<Transaction> = {}): Transaction {
 }
 
 describe("buildResolutionSummary", () => {
-  it("returns unresolved when the oracle has no outcome and status is not resolved", () => {
-    const summary = buildResolutionSummary(makeOracle({ outcome: null }), []);
-    expect(summary.status).toBe("unresolved");
-    if (summary.status !== "unresolved") return;
+  it("returns active when status is Active", () => {
+    const summary = buildResolutionSummary(makeOracle(), []);
+    expect(summary.status).toBe("active");
+    if (summary.status !== "active") return;
     expect(summary.title).toBe("Will Team A win?");
     expect(summary.sources).toEqual([{ kind: "domain", value: "league.example" }]);
     expect(summary.earliestResolutionDate).toBe("2026-06-01");
   });
 
-  it("returns resolved with validators when outcome is set and a resolution tx exists", () => {
+  it("returns resolved with decoded validator outputs when status is Resolved", () => {
     const summary = buildResolutionSummary(
-      makeOracle({ outcome: "Yes", status: "Resolved" }),
+      makeOracle({
+        outcome: "Yes",
+        status: "Resolved",
+        analysis: { reasoning: "Both sources independently agreed.", outcome: "Yes" },
+      }),
       [makeResolutionTx()],
     );
     expect(summary.status).toBe("resolved");
     if (summary.status !== "resolved") return;
     expect(summary.outcome).toBe("Yes");
+    expect(summary.consensusReasoning).toBe("Both sources independently agreed.");
     expect(summary.validators).toHaveLength(3);
-    expect(summary.validators[0]).toMatchObject({
-      label: "Leader",
-      role: "leader",
-      vote: "Yes",
-      agreedWithOutcome: true,
-    });
-    expect(summary.validators[1]).toMatchObject({ label: "Validator 1", role: "validator" });
-    expect(summary.validators[2]).toMatchObject({ label: "Validator 2", role: "validator" });
+    const [leader, v1, v2] = summary.validators;
+    expect(leader.label).toBe("Leader");
+    expect(leader.role).toBe("leader");
+    expect(leader.proposedOutcome).toBe("Yes");
+    expect(leader.reasoning).toContain("Leader read the URL");
+    expect(leader.vote).toBe("agree");
+    expect(leader.agreed).toBe(true);
+    expect(v1.label).toBe("Validator 1");
+    expect(v1.proposedOutcome).toBe("Yes");
+    expect(v1.reasoning).toContain("Validator 1 read the URL");
+    expect(v2.proposedOutcome).toBe("Yes");
+    expect(v2.reasoning).toContain("Validator 2 read the URL");
     expect(summary.resolvedAt).toBe("2026-06-02T12:00:00.000Z");
   });
 
-  it("recognizes resolution via status alone even when outcome is missing", () => {
+  it("returns error when status is Error", () => {
     const summary = buildResolutionSummary(
-      makeOracle({ outcome: "", status: "Resolved" }),
+      makeOracle({
+        status: "Error",
+        outcome: "",
+        analysis: {
+          reasoning: "The validators returned ERROR; outcome not in potential list.",
+          outcome: "ERROR",
+        },
+      }),
       [makeResolutionTx()],
     );
-    expect(summary.status).toBe("resolved");
-    if (summary.status !== "resolved") return;
-    expect(summary.outcome).toBe("Unknown");
+    expect(summary.status).toBe("error");
+    if (summary.status !== "error") return;
+    expect(summary.consensusReasoning).toContain("validators returned ERROR");
+    expect(summary.consensusOutcome).toBe("ERROR");
+    expect(summary.validators).toHaveLength(3);
   });
 
-  it("returns resolved with empty validators when no resolution tx exists", () => {
-    const summary = buildResolutionSummary(
-      makeOracle({ outcome: "No", status: "Resolved" }),
-      [],
-    );
-    expect(summary.status).toBe("resolved");
-    if (summary.status !== "resolved") return;
-    expect(summary.validators).toEqual([]);
-    expect(summary.outcome).toBe("No");
-  });
-
-  it("marks validators that disagree with the outcome", () => {
+  it("surfaces a validator that disagreed with the equivalence principle", () => {
     const summary = buildResolutionSummary(
       makeOracle({ outcome: "Yes", status: "Resolved" }),
       [
@@ -112,19 +138,24 @@ describe("buildResolutionSummary", () => {
             final: true,
             leader_receipt: {
               node_config: { address: "0xLEADER" },
-              vote: "Yes",
-              execution_result: "Leader said Yes.",
+              vote: "agree",
+              execution_result: "SUCCESS",
+              result: encodeValidatorOutput("Yes", "Leader said Yes."),
+              eq_outputs: {
+                "0": encodeValidatorOutput("Yes", "Validator 1 said Yes."),
+                "1": encodeValidatorOutput("No", "Validator 2 disagreed."),
+              },
             },
             validators: [
               {
                 node_config: { address: "0xV1" },
-                vote: "Yes",
-                execution_result: "Validator 1 said Yes.",
+                vote: "agree",
+                execution_result: "SUCCESS",
               },
               {
                 node_config: { address: "0xV2" },
-                vote: "No",
-                execution_result: "Validator 2 disagreed.",
+                vote: "disagree",
+                execution_result: "SUCCESS",
               },
             ],
           },
@@ -133,11 +164,13 @@ describe("buildResolutionSummary", () => {
     );
     expect(summary.status).toBe("resolved");
     if (summary.status !== "resolved") return;
-    expect(summary.validators[1].agreedWithOutcome).toBe(true);
-    expect(summary.validators[2].agreedWithOutcome).toBe(false);
+    expect(summary.validators[1].agreed).toBe(true);
+    expect(summary.validators[2].agreed).toBe(false);
+    expect(summary.validators[2].vote).toBe("disagree");
+    expect(summary.validators[2].proposedOutcome).toBe("No");
   });
 
-  it("handles a degenerate single-validator resolution", () => {
+  it("handles a degenerate single-validator (leader only) resolution", () => {
     const summary = buildResolutionSummary(
       makeOracle({ outcome: "Yes", status: "Resolved" }),
       [
@@ -146,8 +179,10 @@ describe("buildResolutionSummary", () => {
             final: true,
             leader_receipt: {
               node_config: { address: "0xLEADER" },
-              vote: "Yes",
-              execution_result: "Solo run.",
+              vote: "agree",
+              execution_result: "SUCCESS",
+              result: encodeValidatorOutput("Yes", "Solo run."),
+              eq_outputs: {},
             },
             validators: [],
           },
@@ -158,9 +193,11 @@ describe("buildResolutionSummary", () => {
     if (summary.status !== "resolved") return;
     expect(summary.validators).toHaveLength(1);
     expect(summary.validators[0].label).toBe("Leader");
+    expect(summary.validators[0].reasoning).toContain("Solo run");
   });
 
-  it("falls back to eq_outputs strings when execution_result is empty", () => {
+  it("falls back to the raw decoded string when eq_output is not valid JSON", () => {
+    const rawEqOutput = Buffer.from("not-json-just-text", "utf8").toString("base64");
     const summary = buildResolutionSummary(
       makeOracle({ outcome: "Yes", status: "Resolved" }),
       [
@@ -169,40 +206,100 @@ describe("buildResolutionSummary", () => {
             final: true,
             leader_receipt: {
               node_config: { address: "0xLEADER" },
-              vote: "Yes",
-              execution_result: "",
-              eq_outputs: { "0": "encoded-eq-output-string" },
+              vote: "agree",
+              execution_result: "SUCCESS",
+              result: encodeValidatorOutput("Yes", "Leader OK."),
+              eq_outputs: { "0": rawEqOutput },
             },
-            validators: [],
+            validators: [
+              {
+                node_config: { address: "0xV1" },
+                vote: "agree",
+                execution_result: "SUCCESS",
+              },
+            ],
           },
         }),
       ],
     );
     expect(summary.status).toBe("resolved");
     if (summary.status !== "resolved") return;
-    expect(summary.validators[0].reasoning).toBe("encoded-eq-output-string");
+    expect(summary.validators[1].reasoning).toBe("not-json-just-text");
+  });
+
+  it("returns resolved with empty validators when no successful resolution tx exists", () => {
+    const summary = buildResolutionSummary(
+      makeOracle({ outcome: "No", status: "Resolved" }),
+      [],
+    );
+    expect(summary.status).toBe("resolved");
+    if (summary.status !== "resolved") return;
+    expect(summary.validators).toEqual([]);
+    expect(summary.outcome).toBe("No");
+  });
+
+  it("ignores failed resolve attempts when picking the resolution tx", () => {
+    const failedAttempt = makeResolutionTx({
+      hash: "0xFAIL",
+      created_at: "2026-06-05T00:00:00Z",
+      consensus_data: {
+        final: true,
+        leader_receipt: {
+          node_config: { address: "0xLEADER" },
+          execution_result: "ERROR",
+          vote: "agree",
+          result: encodeValidatorOutput("ERROR", "Validator 1 hit an error."),
+          eq_outputs: {
+            "0": encodeValidatorOutput("ERROR", "Polluted reasoning that must not surface."),
+          },
+        },
+        validators: [
+          { node_config: { address: "0xV1" }, vote: "agree", execution_result: "ERROR" },
+        ],
+      },
+    });
+    const successAttempt = makeResolutionTx({ hash: "0xOK" });
+    const summary = buildResolutionSummary(
+      makeOracle({ outcome: "Yes", status: "Resolved" }),
+      [failedAttempt, successAttempt],
+    );
+    expect(summary.status).toBe("resolved");
+    if (summary.status !== "resolved") return;
+    expect(summary.validators[0].reasoning).toContain("Leader read the URL");
+    expect(summary.resolvedAt).toBe("2026-06-02T12:00:00.000Z");
   });
 
   it("collects both domain and url sources separately", () => {
     const summary = buildResolutionSummary(
       makeOracle({
-        outcome: null,
         data_source_domains: ["a.example"],
         resolution_urls: ["https://b.example/result"],
       }),
       [],
     );
-    expect(summary.status).toBe("unresolved");
-    if (summary.status !== "unresolved") return;
+    expect(summary.status).toBe("active");
+    if (summary.status !== "active") return;
     expect(summary.sources).toEqual([
       { kind: "domain", value: "a.example" },
       { kind: "url", value: "https://b.example/result" },
     ]);
   });
+
+  it("surfaces oracle.analysis as the consensus reasoning when present", () => {
+    const summary = buildResolutionSummary(
+      makeOracle({
+        analysis: { reasoning: "Pending resolution; previous attempt was UNDETERMINED." },
+      }),
+      [],
+    );
+    expect(summary.status).toBe("active");
+    if (summary.status !== "active") return;
+    expect(summary.consensusReasoning).toContain("UNDETERMINED");
+  });
 });
 
 describe("pickResolutionTransaction", () => {
-  it("returns undefined when no transactions have consensus data", () => {
+  it("returns undefined when no transactions have successful finalized consensus", () => {
     const result = pickResolutionTransaction([
       { hash: "0x1" },
       { hash: "0x2", data: { contract_address: "0xCREATE" } },
@@ -219,23 +316,34 @@ describe("pickResolutionTransaction", () => {
     expect(pickResolutionTransaction([create, resolve])?.hash).toBe("0xRESOLVE");
   });
 
-  it("prefers finalized resolution transactions over non-finalized", () => {
-    const pending = makeResolutionTx({
-      hash: "0xPENDING",
-      created_at: "2026-06-03T00:00:00Z",
+  it("rejects transactions whose leader execution did not succeed", () => {
+    const errored = makeResolutionTx({
+      hash: "0xERR",
       consensus_data: {
-        final: false,
-        leader_receipt: { node_config: {}, execution_result: "x" },
+        final: true,
+        leader_receipt: {
+          node_config: {},
+          execution_result: "ERROR",
+        },
       },
     });
-    const finalEarlier = makeResolutionTx({
-      hash: "0xFINAL",
-      created_at: "2026-06-02T00:00:00Z",
-    });
-    expect(pickResolutionTransaction([pending, finalEarlier])?.hash).toBe("0xFINAL");
+    const success = makeResolutionTx({ hash: "0xOK" });
+    expect(pickResolutionTransaction([errored, success])?.hash).toBe("0xOK");
   });
 
-  it("picks the latest among multiple finalized resolution transactions", () => {
+  it("rejects non-finalized resolution transactions even when SUCCESS", () => {
+    const pending = makeResolutionTx({
+      hash: "0xPENDING",
+      consensus_data: {
+        final: false,
+        leader_receipt: { node_config: {}, execution_result: "SUCCESS" },
+      },
+    });
+    const final = makeResolutionTx({ hash: "0xFINAL" });
+    expect(pickResolutionTransaction([pending, final])?.hash).toBe("0xFINAL");
+  });
+
+  it("picks the latest among multiple successful finalized resolution transactions", () => {
     const older = makeResolutionTx({ hash: "0xOLD", created_at: "2026-06-01T00:00:00Z" });
     const newer = makeResolutionTx({ hash: "0xNEW", created_at: "2026-06-05T00:00:00Z" });
     expect(pickResolutionTransaction([older, newer])?.hash).toBe("0xNEW");

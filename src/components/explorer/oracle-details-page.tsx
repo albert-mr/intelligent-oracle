@@ -87,9 +87,16 @@ export function OracleDetailsPage({ address }: OracleDetailsPageProps) {
   const { openConnectModal } = useConnectModal();
   const [oracle, setOracle] = useState<Oracle | undefined>();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  // Each refresh allocates a new transactions array, so a naive [oracle, transactions]
+  // dependency rebuilds the summary every 5s even when nothing actually changed.
+  // Hash-join the transaction identities so reference churn doesn't cascade.
+  const transactionsSignature = transactions
+    .map((tx) => `${tx.hash ?? ""}:${tx.statusName ?? tx.status ?? ""}`)
+    .join("|");
   const resolutionSummary = useMemo(
     () => (oracle ? buildResolutionSummary(oracle, transactions) : null),
-    [oracle, transactions],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [oracle, transactionsSignature],
   );
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [transactionTab, setTransactionTab] = useState<TransactionTab>("overview");
@@ -118,6 +125,12 @@ export function OracleDetailsPage({ address }: OracleDetailsPageProps) {
   useEffect(() => {
     if (!ready) return;
 
+    // Stop polling once the oracle reaches a terminal state — Resolved or Error
+    // are both final per IntelligentOracle.py. Without this guard every open
+    // resolved-oracle tab burns RPC + battery every 5 seconds forever.
+    const terminalStatus = oracle?.status === "Resolved" || oracle?.status === "Error";
+    if (terminalStatus) return;
+
     let cancelled = false;
     const refresh = async () => {
       if (cancelled) return;
@@ -130,7 +143,7 @@ export function OracleDetailsPage({ address }: OracleDetailsPageProps) {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [ready, refreshOracle]);
+  }, [oracle?.status, ready, refreshOracle]);
 
   async function copyTransaction(transaction: Transaction) {
     await navigator.clipboard.writeText(JSON.stringify(transaction, null, 2));
