@@ -1,6 +1,6 @@
-# Intelligent Oracle System
+# Giliri Oracle Workspace
 
-A reference app for creating, deploying, and monitoring AI-powered oracles on GenLayer. The UI and API runtime are a single Next.js App Router application backed by GenLayer intelligent contracts.
+A reference app for creating and monitoring oracle markets. The UI and API runtime are a single Next.js App Router application backed by GenLayer intelligent contracts.
 
 ## Prerequisites
 
@@ -21,7 +21,6 @@ The hosted Studio network (`https://studio.genlayer.com/api`) is the default. Fo
   - `/explorer` — oracle registry explorer
   - `/oracle/[address]` — oracle detail, transaction inspection, and resolution
   - `/api/chat` — OpenRouter-backed AI SDK streaming chat
-  - `/api/bridge/deploy-intelligent-oracle` — GenLayer factory deployment bridge
 - `intelligent-contracts/` — GenLayer Python contracts
 - `scripts/` — separate npm package for factory deployment scripts; kept outside the root app because it has deployment-specific env and side effects
 - `test/` — Python E2E tests and seed helpers
@@ -35,15 +34,15 @@ OPENROUTER_API_KEY=...
 OPENROUTER_MODEL=openai/gpt-5-mini
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 
-BRIDGE_PRIVATE_KEY=0x...
-GENLAYER_RPC_URL=https://studio.genlayer.com/api
-IC_REGISTRY_ADDRESS=0x...
-
 NEXT_PUBLIC_GENLAYER_RPC_URL=https://studio.genlayer.com/api
+NEXT_PUBLIC_ORACLE_FACTORY_ADDRESS=0x...
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=...
+
+# Legacy fallback during migration
 NEXT_PUBLIC_IC_REGISTRY_ADDRESS=0x...
 ```
 
-`OPENROUTER_*`, `BRIDGE_PRIVATE_KEY`, `GENLAYER_RPC_URL`, and `IC_REGISTRY_ADDRESS` are server-only. `NEXT_PUBLIC_*` values are used by the browser explorer.
+`OPENROUTER_*` values are server-only. GenLayer reads and writes in the app use browser-visible `NEXT_PUBLIC_*` values, and write transactions are signed by the connected wallet.
 
 ## Development
 
@@ -51,7 +50,7 @@ NEXT_PUBLIC_IC_REGISTRY_ADDRESS=0x...
 npm install
 npm run dev
 
-# Deploy the factory
+# Deploy the factory, when intentionally changing infrastructure
 cd scripts && npm install && cp .env.example .env && npm run deploy
 
 # Contract linting
@@ -67,7 +66,7 @@ python -m pip install -r test/requirements.txt
 python -m pytest test/
 ```
 
-`npm run check` runs lint, TypeScript, unit tests, and the production Next.js build for the root UI/API app. The `scripts/` package is installed and run separately only when intentionally deploying contracts.
+`npm run check` runs lint, TypeScript, unit tests, and the production Next.js build for the root UI/API app. The `scripts/` package is installed and run separately only when intentionally changing deployed infrastructure.
 
 ## Tech Stack
 

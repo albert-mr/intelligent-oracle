@@ -4,16 +4,17 @@ interface StatusBadgeProps {
 
 export function StatusBadge({ status }: StatusBadgeProps) {
   const normalized = status || "Unknown";
-  const className = normalized === "Resolved"
-    ? "bg-accent-soft text-accent"
-    : normalized === "Error"
-      ? "bg-danger-soft text-danger"
-      : normalized === "PENDING"
-        ? "bg-warning-soft text-amber-800"
-        : "bg-highlight-soft text-highlight";
+  const lower = normalized.toLowerCase();
+  const className = lower.includes("resolved")
+    ? "border-accent-foreground/20 bg-accent text-accent-foreground"
+    : lower.includes("error") || lower.includes("fail")
+      ? "border-destructive/20 bg-destructive/10 text-destructive"
+      : lower.includes("pending")
+        ? "border-amber-300/60 bg-warning-soft text-amber-800"
+        : "border-primary/20 bg-primary/10 text-primary";
 
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${className}`}>
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}>
       {normalized}
     </span>
   );

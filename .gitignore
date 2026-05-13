@@ -14,8 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -38,6 +38,7 @@ pip-delete-this-directory.txt
 
 # Unit test / coverage reports
 htmlcov/
+test-results/
 .tox/
 .nox/
 .coverage
@@ -134,6 +135,7 @@ ENV/
 env.bak/
 venv.bak/
 .data
+.context/
 
 # Spyder project settings
 .spyderproject
@@ -180,9 +182,8 @@ pnpm-debug.log*
 .npm/
 .pnpm-store/
 
-# Lockfile policy: this repo uses npm per module, so package-lock.json files
-# are intentionally tracked. Ignore lockfiles from package managers we no
-# longer use to avoid accidental churn.
+# Lockfile policy: ignore package manager lockfiles to avoid accidental churn.
+package-lock.json
 pnpm-lock.yaml
 yarn.lock
 
@@ -190,3 +191,4 @@ yarn.lock
 .DS_Store
 .fleet
 .idea
+.gstack/
