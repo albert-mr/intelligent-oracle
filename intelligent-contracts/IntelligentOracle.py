@@ -142,8 +142,11 @@ class IntelligentOracle(gl.Contract):
         for resource_url in resources_to_check:
 
             def evaluate_single_source() -> str:
-                response_body = gl.nondet.web.get(resource_url).body or b""
-                resource_web_data = response_body.decode("utf-8", errors="replace")
+                resource_web_data = gl.nondet.web.render(
+                    resource_url,
+                    mode="text",
+                    wait_after_loaded="10s",
+                ) or ""
 
                 task = f"""
 You are an AI Validator tasked with resolving a prediction market.

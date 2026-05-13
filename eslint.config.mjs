@@ -7,6 +7,7 @@ const eslintConfig = [
   {
     ignores: [
       ".next/**",
+      ".context/**",
       "coverage/**",
       "eslint.config.mjs",
       "node_modules/**",

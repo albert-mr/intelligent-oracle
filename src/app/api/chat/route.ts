@@ -1,6 +1,11 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { convertToModelMessages, streamText, type UIMessage } from "ai";
-import { initialPrompt } from "@/lib/assistant-prompt";
+import { convertToModelMessages, streamText, tool } from "ai";
+import { buildInitialPrompt } from "@/lib/assistant-prompt";
+import {
+  evaluateOracleConfig,
+  oracleConfigCandidateSchema,
+} from "@/lib/oracle-config";
+import type { OracleChatMessage } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -26,7 +31,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = (await request.json().catch(() => null)) as { messages?: UIMessage[] } | null;
+  const body = (await request.json().catch(() => null)) as { messages?: OracleChatMessage[] } | null;
   if (!Array.isArray(body?.messages)) {
     return Response.json(
       { error: "Request body must include a messages array." },
@@ -41,9 +46,19 @@ export async function POST(request: Request) {
 
   const result = streamText({
     model: openrouter.chat(model),
-    system: initialPrompt,
+    system: buildInitialPrompt(),
     messages: await convertToModelMessages(body.messages),
+    tools: {
+      proposeOracleConfig: tool({
+        description: "Validate and present the complete oracle configuration.",
+        inputSchema: oracleConfigCandidateSchema,
+        execute: async (candidate) => evaluateOracleConfig(candidate),
+      }),
+    },
   });
 
-  return result.toUIMessageStreamResponse({ headers: corsHeaders });
+  return result.toUIMessageStreamResponse({
+    headers: corsHeaders,
+    onError: () => "The assistant could not complete this response.",
+  });
 }
