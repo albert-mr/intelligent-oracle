@@ -1,7 +1,9 @@
 "use client";
 
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import Image from "next/image";
 import Link from "next/link";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -16,8 +18,18 @@ export function AppHeader({ active, oracleAddress }: AppHeaderProps) {
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-border bg-background/90 backdrop-blur-xl">
       <div className="mx-auto grid h-16 w-full max-w-7xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-4 sm:gap-3 sm:px-6 lg:px-8">
-        <Link href="/" className="flex shrink-0 items-center gap-3" aria-label="Giliri home">
-          <span className="text-lg font-semibold tracking-normal text-foreground">Giliri</span>
+        <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="Intelligent Oracle home">
+          <Image
+            src="/brand/genlayer-mark.svg"
+            alt=""
+            width={26}
+            height={24}
+            className="dark:invert"
+            priority
+          />
+          <span className="text-base font-semibold tracking-tight text-foreground">
+            Intelligent Oracle
+          </span>
         </Link>
         <nav className="flex min-w-0 justify-self-end rounded-md border border-border bg-card p-1 text-sm shadow-sm">
           <Link
@@ -43,7 +55,8 @@ export function AppHeader({ active, oracleAddress }: AppHeaderProps) {
             Explorer
           </Link>
         </nav>
-        <div className="justify-self-end">
+        <div className="flex items-center gap-1.5 justify-self-end sm:gap-2">
+          <ThemeToggle />
           <WalletButton />
         </div>
       </div>

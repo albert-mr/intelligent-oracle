@@ -10,7 +10,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     : lower.includes("error") || lower.includes("fail")
       ? "border-destructive/20 bg-destructive/10 text-destructive"
       : lower.includes("pending")
-        ? "border-amber-300/60 bg-warning-soft text-amber-800"
+        ? "border-amber-500/30 bg-warning-soft text-amber-700 dark:text-amber-200"
         : "border-primary/20 bg-primary/10 text-primary";
 
   return (

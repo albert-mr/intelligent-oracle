@@ -54,6 +54,8 @@ import {
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion";
 import { AppHeader } from "@/components/app-header";
+import { BrandMark } from "@/components/brand/brand-mark";
+import { WaveDecoration } from "@/components/brand/wave-decoration";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -934,14 +936,24 @@ function EmptyStateHero({
   onExample: (prompt: string) => void;
 }) {
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 py-6">
+    <div className="relative isolate mx-auto flex w-full max-w-3xl flex-col gap-7 py-8">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 -top-10 -z-10 h-72 bg-[radial-gradient(ellipse_at_top,_var(--color-accent-soft)_0%,_transparent_65%)] opacity-80"
+      />
+      <WaveDecoration
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-56 w-full opacity-60 [mask-image:linear-gradient(to_bottom,black,transparent)]"
+      />
       <div>
-        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
-          <Sparkles className="size-3.5" aria-hidden />
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-[image:var(--gradient-brand)] px-3 py-1 text-xs font-medium text-white shadow-sm">
+          <BrandMark className="size-3" />
           Intelligent Oracle
-        </div>
-        <h2 className="mt-3 text-2xl font-semibold leading-tight">Create an Intelligent Oracle</h2>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+        </span>
+        <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+          Create an Intelligent Oracle
+        </h2>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
           Describe a market in plain English. The on-chain config drafts on the right, field by field.
           Pick an example or type your own.
         </p>
@@ -950,7 +962,7 @@ function EmptyStateHero({
       <div className="grid gap-3 sm:grid-cols-3">
         {STARTER_EXAMPLES.map((example) => (
           <button
-            className="group flex flex-col gap-2 rounded-lg border border-border bg-background p-4 text-left transition-colors hover:border-foreground/30 hover:bg-card disabled:cursor-not-allowed disabled:opacity-50"
+            className="group flex flex-col gap-2 rounded-lg border border-border bg-card p-4 text-left transition-all hover:-translate-y-0.5 hover:border-brand-lavender/50 hover:bg-accent/40 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
             disabled={disabled}
             key={example.title}
             onClick={() => onExample(example.prompt)}
@@ -960,8 +972,8 @@ function EmptyStateHero({
               {example.title}
             </span>
             <span className="text-sm font-medium leading-snug text-foreground">{example.hint}</span>
-            <span className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground group-hover:text-foreground">
-              Try this <ArrowRight className="size-3" aria-hidden />
+            <span className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors group-hover:text-brand-lavender">
+              Try this <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" aria-hidden />
             </span>
           </button>
         ))}
